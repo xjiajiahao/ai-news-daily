@@ -1,11 +1,12 @@
 # ai-news-daily
 
-`ai-news-daily` 是一个面向 Codex 的 skill，用于收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术、产品、开源生态取向的日报。
+`ai-news-daily` 是一个面向 Codex 的 skill，用于收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术、产品、开源生态取向的日报，并在用户明确要求时把生成的 Markdown 简报发送到指定邮箱。
 
-仓库当前包含两部分能力：
+仓库当前包含三部分能力：
 
 - `SKILL.md`：定义 skill 的触发条件、工作流和输出要求
 - `scripts/fetch_wechat_articles.py`：拉取配置公众号最新文章列表，供日报生成阶段使用
+- `scripts/send_markdown_email.py`：把生成好的 Markdown 简报作为邮件正文和附件发送
 
 ## 适用场景
 
@@ -14,6 +15,7 @@
 - 生成“今天 AI 有什么新东西”的简报
 - 汇总近 24 小时 AI 技术、模型、产品、Agent、开源项目动态
 - 为每日晨报、群内播报、内部情报汇总准备结构化素材
+- 把已经生成的 AI 简报发到指定邮箱
 
 默认数据源：
 
@@ -40,9 +42,11 @@
 │   └── openai.yaml
 ├── references/
 │   ├── mptext-api.md
+│   ├── smtp-env.md
 │   └── source_accounts.json
 └── scripts/
-    └── fetch_wechat_articles.py
+    ├── fetch_wechat_articles.py
+    └── send_markdown_email.py
 ```
 
 ## 运行要求
@@ -50,6 +54,7 @@
 - Python 3.9+
 - 可访问 `https://down.mptext.top`
 - 有效的 mptext API Key
+- 如需发送邮件，还需要可用的 SMTP 配置
 
 推荐通过环境变量提供密钥：
 
@@ -61,6 +66,17 @@ export MPTEXT_API_KEY="your-api-key"
 
 - `MPTEXT_API_KEY`：mptext 接口密钥
 - `MPTEXT_BASE_URL`：覆盖默认接口地址，默认值为 `https://down.mptext.top`
+
+发送邮件时额外需要：
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASSWORD`
+- 可选：`SMTP_FROM_NAME`
+- 可选：`SMTP_SECURITY`
+
+具体示例见 `references/smtp-env.md`。
 
 ## 快速开始
 
@@ -95,6 +111,18 @@ python3 scripts/fetch_wechat_articles.py \
 
 ```bash
 python3 scripts/fetch_wechat_articles.py --compact
+```
+
+### 4. 发送已生成的简报
+
+```bash
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient@example.com
+```
+
+如果要先验证标题提取、HTML 渲染和 SMTP 配置，可以先执行：
+
+```bash
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient@example.com --dry-run
 ```
 
 ## 脚本参数
@@ -180,6 +208,7 @@ skill 的工作流是：
 2. 再收集 GitHub Trending 中 AI / ML / Agent / 多模态 / 图像 / 语音 / 推理 / 数据工具相关项目
 3. 归并、去重、筛选，优先保留技术、产品和开源生态消息
 4. 输出 Markdown 简报，并写入当前目录下的 `ai-news-daily-YYYY-MM-DD.md`
+5. 如果用户明确要求发到邮箱，则调用 `scripts/send_markdown_email.py` 发送该 Markdown 文件
 
 日报默认输出结构：
 
@@ -191,6 +220,8 @@ skill 的工作流是：
 - `基础设施 / 硬件 / 安全`
 
 具体格式和筛选规则以 `SKILL.md` 为准。
+
+如果用户要求“把简报发到邮箱”，仍然直接使用 `ai-news-daily` 即可，不需要切换到独立的邮件 skill。
 
 ## 配置说明
 
@@ -243,7 +274,9 @@ Missing mptext API key. Set MPTEXT_API_KEY or pass --api-key.
 如果你要扩展这个仓库，通常会改动这几个位置：
 
 - 修改抓取逻辑：`scripts/fetch_wechat_articles.py`
+- 修改邮件发送逻辑：`scripts/send_markdown_email.py`
 - 增删数据源：`references/source_accounts.json`
+- 调整 SMTP 说明：`references/smtp-env.md`
 - 调整日报工作流与输出规范：`SKILL.md`
 - 调整 skill 展示信息：`agents/openai.yaml`
 
