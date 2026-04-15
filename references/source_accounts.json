@@ -1,0 +1,53 @@
+{
+  "accounts": [
+    {
+      "name": "机器之心",
+      "search_keyword": "机器之心",
+      "expected_nickname": "机器之心",
+      "expected_alias": "almosthuman2014",
+      "preferred_fakeid": "MzA3MzI4MjgzMw=="
+    },
+    {
+      "name": "量子位",
+      "search_keyword": "量子位",
+      "expected_nickname": "量子位",
+      "expected_alias": "QbitAI",
+      "preferred_fakeid": "MzIzNjc1NzUzMw=="
+    },
+    {
+      "name": "新智元",
+      "search_keyword": "新智元",
+      "expected_nickname": "新智元",
+      "expected_alias": "AI_era",
+      "preferred_fakeid": "MzI3MTA0MTk1MA=="
+    },
+    {
+      "name": "MiniMax 稀宇科技",
+      "search_keyword": "MiniMax 稀宇科技",
+      "expected_nickname": "MiniMax 稀宇科技",
+      "expected_alias": "minimax-openplatform",
+      "preferred_fakeid": "MzE5MTA3NzcxMQ=="
+    },
+    {
+      "name": "智谱",
+      "search_keyword": "智谱",
+      "expected_nickname": "智谱",
+      "expected_alias": "zhipu_ai",
+      "preferred_fakeid": "MzkyMzI3NzQ0Mg=="
+    },
+    {
+      "name": "通义实验室",
+      "search_keyword": "通义实验室",
+      "expected_nickname": "通义实验室",
+      "expected_alias": "AlibabaTongYiQianWen",
+      "preferred_fakeid": "MzkxMTYyMTAzNA=="
+    },
+    {
+      "name": "月之暗面 Kimi",
+      "search_keyword": "月之暗面 Kimi",
+      "expected_nickname": "月之暗面 Kimi",
+      "expected_alias": "moonshotai",
+      "preferred_fakeid": "Mzk0NDU1MDkyNg=="
+    }
+  ]
+}

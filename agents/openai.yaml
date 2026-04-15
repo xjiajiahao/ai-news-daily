@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI News Daily"
+  short_description: "聚合 AI 公众号与 GitHub Trending 生成日报"
+  default_prompt: "Use $ai-news-daily to collect the latest AI news from the configured微信公众号 and GitHub Trending, then draft a concise technical/product-focused briefing."
+
+policy:
+  allow_implicit_invocation: true
