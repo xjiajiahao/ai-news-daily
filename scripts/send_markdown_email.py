@@ -351,16 +351,40 @@ def render_list_item(lines: list[str]) -> str:
 
 def format_inline(text: str) -> str:
     escaped = html.escape(text)
+    placeholders: list[str] = []
+
+    def stash(match: re.Match[str]) -> str:
+        placeholders.append(match.group(0))
+        return f"@@INLINE_{len(placeholders) - 1}@@"
+
+    # Protect inline code and links before emphasis replacement so URL underscores
+    # and asterisks do not get interpreted as Markdown formatting.
+    escaped = re.sub(r"`(.+?)`", stash, escaped)
+    escaped = re.sub(r"\[(.+?)\]\((.+?)\)", stash, escaped)
+    escaped = re.sub(r"https?://[^\s<]+", stash, escaped)
+
     replacements: Iterable[tuple[str, str]] = (
         (r"\*\*(.+?)\*\*", r"<strong>\1</strong>"),
         (r"__(.+?)__", r"<strong>\1</strong>"),
-        (r"\*(.+?)\*", r"<em>\1</em>"),
-        (r"_(.+?)_", r"<em>\1</em>"),
-        (r"`(.+?)`", r"<code>\1</code>"),
-        (r"\[(.+?)\]\((.+?)\)", r'<a href="\2">\1</a>'),
+        (r"(?<!\w)\*(.+?)\*(?!\w)", r"<em>\1</em>"),
+        (r"(?<!\w)_(.+?)_(?!\w)", r"<em>\1</em>"),
     )
     for pattern, replacement in replacements:
         escaped = re.sub(pattern, replacement, escaped)
+
+    for index, raw in enumerate(placeholders):
+        if raw.startswith("`") and raw.endswith("`"):
+            rendered = "<code>" + raw[1:-1] + "</code>"
+        elif raw.startswith("["):
+            match = re.match(r"\[(.+?)\]\((.+?)\)", raw)
+            if match:
+                rendered = f'<a href="{match.group(2)}">{match.group(1)}</a>'
+            else:
+                rendered = raw
+        else:
+            rendered = f'<a href="{raw}">{raw}</a>'
+        escaped = escaped.replace(f"@@INLINE_{index}@@", rendered)
+
     return escaped
 
 
