@@ -36,7 +36,18 @@ def parse_args() -> argparse.Namespace:
         description="Send a Markdown file as an email body via SMTP.",
     )
     parser.add_argument("markdown_path", help="Path to the Markdown file.")
-    parser.add_argument("recipient", help="Recipient email address.")
+    parser.add_argument(
+        "recipients",
+        nargs="+",
+        help="One or more recipient email addresses.",
+    )
+    parser.add_argument(
+        "--cc",
+        action="append",
+        nargs="+",
+        default=[],
+        help="One or more CC email addresses. Repeatable.",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -89,6 +100,20 @@ def validate_email(value: str, label: str) -> str:
     if not address or "@" not in address:
         raise SystemExit(f"Invalid {label} email address: {value!r}")
     return address
+
+
+def flatten_addresses(values: Iterable[Iterable[str]]) -> list[str]:
+    flattened: list[str] = []
+    for group in values:
+        flattened.extend(group)
+    return flattened
+
+
+def validate_emails(values: Iterable[str], label: str) -> list[str]:
+    validated: list[str] = []
+    for value in values:
+        validated.append(validate_email(value, label))
+    return validated
 
 
 def load_markdown(path_str: str) -> tuple[Path, str]:
@@ -342,7 +367,8 @@ def format_inline(text: str) -> str:
 def build_message(
     config: SmtpConfig,
     markdown_path: Path,
-    recipient: str,
+    recipients: list[str],
+    cc_recipients: list[str],
     subject: str,
     markdown_text: str,
 ) -> EmailMessage:
@@ -351,7 +377,9 @@ def build_message(
         formataddr((config.from_name, config.user)) if config.from_name else config.user
     )
     message["From"] = from_display
-    message["To"] = recipient
+    message["To"] = ", ".join(recipients)
+    if cc_recipients:
+        message["Cc"] = ", ".join(cc_recipients)
     message["Subject"] = subject
     message.set_content(markdown_text)
     message.add_alternative(markdown_to_html(markdown_text), subtype="html")
@@ -393,16 +421,26 @@ def main() -> None:
     args = parse_args()
     config = read_config()
     sender = validate_email(config.user, "SMTP_USER")
-    recipient = validate_email(args.recipient, "recipient")
+    recipients = validate_emails(args.recipients, "recipient")
+    cc_recipients = validate_emails(flatten_addresses(args.cc), "cc recipient")
     path, markdown_text = load_markdown(args.markdown_path)
     subject = derive_subject(path, markdown_text)
-    message = build_message(config, path, recipient, subject, markdown_text)
+    message = build_message(
+        config,
+        path,
+        recipients,
+        cc_recipients,
+        subject,
+        markdown_text,
+    )
 
     if args.dry_run:
         print(f"markdown_path={path}")
         print(f"subject={subject}")
         print(f"from={sender}")
-        print(f"to={recipient}")
+        print(f"to={', '.join(recipients)}")
+        if cc_recipients:
+            print(f"cc={', '.join(cc_recipients)}")
         print(f"security={config.security}")
         print(f"html_part_bytes={len(message.get_payload()[1].as_bytes())}")
         print(f"attachment={path.name}")
@@ -410,7 +448,8 @@ def main() -> None:
         return
 
     send_message(config, message)
-    print(f"Sent {path.name} to {recipient} with subject: {subject}")
+    delivered_to = recipients + cc_recipients
+    print(f"Sent {path.name} to {', '.join(delivered_to)} with subject: {subject}")
 
 
 if __name__ == "__main__":

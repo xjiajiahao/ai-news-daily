@@ -116,13 +116,13 @@ python3 scripts/fetch_wechat_articles.py --compact
 ### 4. 发送已生成的简报
 
 ```bash
-python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient@example.com
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com
 ```
 
 如果要先验证标题提取、HTML 渲染和 SMTP 配置，可以先执行：
 
 ```bash
-python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient@example.com --dry-run
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com --dry-run
 ```
 
 ## 脚本参数

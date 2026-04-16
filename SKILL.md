@@ -86,13 +86,13 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 使用：
 
 ```bash
-python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient@example.com
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com
 ```
 
 需要先验证配置、解析结果或当前环境网络受限时，使用：
 
 ```bash
-python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient@example.com --dry-run
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com --dry-run
 ```
 
 发信规则：

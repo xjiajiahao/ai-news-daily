@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
+import socket
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,6 +23,8 @@ DEFAULT_BASE_URL = "https://down.mptext.top"
 DEFAULT_ACCOUNT_CONFIG = (
     Path(__file__).resolve().parents[1] / "references" / "source_accounts.json"
 )
+DEFAULT_RETRY_ATTEMPTS = 3
+DEFAULT_RETRY_BACKOFF_SECONDS = 1.5
 
 
 class MpTextError(RuntimeError):
@@ -136,14 +141,25 @@ def request_json(
         url = f"{url}?{query}"
 
     request = urllib.request.Request(url, headers=build_headers(api_key))
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")
-        raise MpTextError(f"HTTP {exc.code} for {url}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise MpTextError(f"Network error for {url}: {exc}") from exc
+    for attempt in range(1, DEFAULT_RETRY_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            raise MpTextError(f"HTTP {exc.code} for {url}: {detail}") from exc
+        except (
+            urllib.error.URLError,
+            http.client.RemoteDisconnected,
+            TimeoutError,
+            socket.timeout,
+            ConnectionResetError,
+        ) as exc:
+            if attempt >= DEFAULT_RETRY_ATTEMPTS:
+                raise MpTextError(f"Network error for {url}: {exc}") from exc
+            time.sleep(DEFAULT_RETRY_BACKOFF_SECONDS * attempt)
+
+    raise MpTextError(f"Network error for {url}: exhausted retries")
 
 
 def load_account_specs(config_path: str) -> List[AccountSpec]:
