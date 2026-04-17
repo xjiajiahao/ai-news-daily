@@ -58,6 +58,13 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 - 项目描述
 - 当日 Star 增长
 
+开源项目数据提取规则：
+
+- `Stars` 填项目当前累计 Star 总数，不是当天增长值
+- `今日增长` 只填 GitHub Trending 页面展示的当日新增 Star 数
+- 如果只能拿到累计 Star、拿不到当日增长，就不要伪造“今日增长”数字
+- 严禁把累计 Star 总数和“今日增长”写成同一个值，除非源页面两者确实一致
+
 ### 3. 归并与筛选
 
 默认优先级：
@@ -136,7 +143,7 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 - [标题] - [链接]
 
 ### 开源项目
-- [项目名] - Stars: N | 今日增长: N - [链接]
+- [项目名] - Stars: N（累计） | 今日增长: N（24h） - [链接]
   [一句话介绍]
 
 ### 基础设施 / 硬件 / 安全

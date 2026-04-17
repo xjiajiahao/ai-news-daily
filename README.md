@@ -206,6 +206,9 @@ skill 的工作流是：
 
 1. 先运行 `scripts/fetch_wechat_articles.py` 拉取公众号文章列表
 2. 再收集 GitHub Trending 中 AI / ML / Agent / 多模态 / 图像 / 语音 / 推理 / 数据工具相关项目
+   - `Stars` 使用项目当前累计 Star 总数
+   - `今日增长` 使用 GitHub Trending 页面显示的当日新增 Star 数
+   - 不要把累计 Star 和今日增长写成同一个值，除非源页面确实一致
 3. 归并、去重、筛选，优先保留技术、产品和开源生态消息
 4. 输出 Markdown 简报，并写入当前目录下的 `ai-news-daily-YYYY-MM-DD.md`
 5. 如果用户明确要求发到邮箱，则调用 `scripts/send_markdown_email.py` 发送该 Markdown 文件
