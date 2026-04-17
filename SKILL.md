@@ -72,6 +72,9 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 - 优先“近 24 小时”内容
 - 同一消息跨公众号重复时去重，保留信息量更高的链接
 - 融资、估值、空泛战略表态默认降权
+- `Top 10` 默认应以“模型 / 研究 / AI 产品 / 基础设施更新”为主，GitHub Trending 只作为补充信号
+- `Top 10` 中 GitHub Trending 条目默认不超过 2 条；只有当天公众号和产品信号明显不足时，才放宽到 3 条
+- GitHub Trending 更适合放在 `### 开源项目` 小节集中展示，不要用多个趋势项目挤占 `Top 10`
 
 ### 4. 写出 Markdown 简报
 
@@ -143,6 +146,8 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 ## 要求
 
 - Top 10 以技术、产品、开源为主
+- Top 10 里优先放“新模型、新研究、新产品、新基础设施”，不要默认把多个 GitHub Trending 条目顶进前 10
+- GitHub Trending 条目在 Top 10 中默认最多 2 条，并且要选当天最有代表性的项目，而不是按热度机械罗列
 - 每条至少包含标题和链接，尽量补一句摘要
 - 开源项目每条都要补一行一句话介绍，优先使用 GitHub Trending 的项目描述
 - 商业新闻不允许为了凑数挤占 Top 10
