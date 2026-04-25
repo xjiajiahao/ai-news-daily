@@ -144,7 +144,14 @@ def request_json(
     for attempt in range(1, DEFAULT_RETRY_ATTEMPTS + 1):
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                return json.load(response)
+                payload = json.load(response)
+                base_resp = payload.get("base_resp")
+                if isinstance(base_resp, dict) and base_resp.get("ret") not in (None, 0):
+                    err_msg = base_resp.get("err_msg") or "unknown error"
+                    raise MpTextError(
+                        f"API error for {url}: ret={base_resp.get('ret')} err_msg={err_msg}"
+                    )
+                return payload
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")
             raise MpTextError(f"HTTP {exc.code} for {url}: {detail}") from exc

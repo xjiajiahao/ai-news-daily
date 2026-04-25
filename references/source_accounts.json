@@ -48,6 +48,27 @@
       "expected_nickname": "月之暗面 Kimi",
       "expected_alias": "moonshotai",
       "preferred_fakeid": "Mzk0NDU1MDkyNg=="
+    },
+    {
+      "name": "DeepSeek",
+      "search_keyword": "DeepSeek",
+      "expected_nickname": "DeepSeek",
+      "expected_alias": "deepseek-ai",
+      "preferred_fakeid": "Mzk0OTYwNzc3NQ=="
+    },
+    {
+      "name": "AGI Hunt",
+      "search_keyword": "AGI Hunt",
+      "expected_nickname": "AGI Hunt",
+      "expected_alias": "AGIHunt",
+      "preferred_fakeid": "MzA4NzgzMjA4MQ=="
+    },
+    {
+      "name": "赛博禅心",
+      "search_keyword": "赛博禅心",
+      "expected_nickname": "赛博禅心",
+      "expected_alias": "BinaryBodhi",
+      "preferred_fakeid": "MzkzNDQxOTU2MQ=="
     }
   ]
 }
