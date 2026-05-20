@@ -2,10 +2,11 @@
 
 `ai-news-daily` 是一个面向 Codex 的 skill，用于收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术、产品、开源生态取向的日报，并在用户明确要求时把生成的 Markdown 简报发送到指定邮箱或微信公众号草稿箱。
 
-仓库当前包含四部分能力：
+仓库当前包含五部分能力：
 
 - `SKILL.md`：定义 skill 的触发条件、工作流和输出要求
 - `scripts/fetch_wechat_articles.py`：拉取配置公众号最新文章列表，供日报生成阶段使用
+- `scripts/markdown_utils.py`：复用 Markdown 标题提取、HTML 渲染与公众号 HTML 转换逻辑
 - `scripts/send_markdown_email.py`：把生成好的 Markdown 简报作为邮件正文和附件发送
 - `scripts/send_markdown_wechat.py`：把生成好的 Markdown 简报转换成公众号图文草稿，并可选提交发布
 
@@ -50,6 +51,8 @@
 │   ├── smtp-env.md
 │   ├── source_accounts.json
 │   └── wechat-official-account-env.md
+├── asset/
+│   └── ai-news-daily.png
 └── scripts/
     ├── fetch_wechat_articles.py
     ├── markdown_utils.py
@@ -145,6 +148,13 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com --dry-run
 ```
 
+邮件发送行为：
+
+- 默认从 Markdown 第一行标题提取邮件主题
+- 同时发送纯文本正文和 HTML 正文
+- 原始 Markdown 文件会作为附件一并发送
+- `SMTP_SECURITY=auto` 时，会按端口自动推断 `ssl`、`starttls` 或 `plain`
+
 ### 5. 创建微信公众号草稿
 
 ```bash
@@ -164,11 +174,28 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
 python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --dry-run
 ```
 
+如果要把生成的请求体落盘，便于排查或人工检查：
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md \
+  --dry-run \
+  --payload-output /tmp/ai-news-wechat-payload.json
+```
+
 如果用户明确要求直接发布，再显式提交发布任务：
 
 ```bash
 python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --publish
 ```
+
+公众号发送行为：
+
+- 默认只创建草稿，不会自动发布
+- 草稿必须有封面；可通过 `WECHAT_DEFAULT_THUMB_MEDIA_ID`、`--thumb-media-id` 或 `--thumb-image` 提供
+- `--thumb-image` 支持本地文件路径和远程图片 URL
+- Markdown 中的图片默认会上传到微信正文图片接口后替换链接
+- 如果不希望自动重写正文图片，可传 `--skip-image-upload`
+- `--open-comment` 可开启评论，`--fans-only-comment` 需要和 `--open-comment` 一起使用
 
 ## 脚本参数
 
@@ -193,6 +220,16 @@ python3 scripts/fetch_wechat_articles.py --help
 python3 scripts/send_markdown_email.py --help
 python3 scripts/send_markdown_wechat.py --help
 ```
+
+其中 `scripts/send_markdown_wechat.py` 额外常用参数包括：
+
+- `--title`：覆盖从 Markdown 自动提取的标题
+- `--author`：覆盖公众号作者名
+- `--digest`：覆盖自动生成或环境变量提供的摘要
+- `--content-source-url`：设置“原文链接”
+- `--thumb-media-id`：直接指定封面 `media_id`
+- `--thumb-image`：上传本地或远程封面图并自动使用返回的 `media_id`
+- `--payload-output`：把最终草稿请求体写到本地 JSON 文件
 
 ## 输出格式
 
@@ -258,7 +295,7 @@ skill 的工作流是：
    - 不要把累计 Star 和今日增长写成同一个值，除非源页面确实一致
 3. 归并、去重、筛选，优先保留技术、产品和开源生态消息
 4. 输出 Markdown 简报，并写入当前目录下的 `ai-news-daily-YYYY-MM-DD.md`
-5. 如果用户明确要求发到邮箱，则调用 `scripts/send_markdown_email.py` 发送该 Markdown 文件
+5. 如果用户明确要求发到邮箱，则调用 `scripts/send_markdown_email.py` 发送第 4 步产出的 Markdown 文件
 6. 如果用户明确要求发到微信公众号，则调用 `scripts/send_markdown_wechat.py` 创建草稿；只有明确要求直接发布时才传 `--publish`
 
 日报默认输出结构：

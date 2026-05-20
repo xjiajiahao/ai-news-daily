@@ -22,6 +22,9 @@ description: 收集每日 AI 技术与产品动态，聚合 GitHub Trending 与�
   - 智谱
   - 通义实验室
   - 月之暗面 Kimi
+  - DeepSeek
+  - AGI Hunt
+  - 赛博禅心
 
 微信公众号文章列表统一通过 `scripts/fetch_wechat_articles.py` 获取。
 
@@ -89,6 +92,8 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 
 如果用户没有单独指定文件名，就按这个默认文件名写出，后续发邮件或发公众号也使用这个文件。
 
+如果用户后续要求发邮件或发公众号，不要重新手工拼正文，统一复用这个 Markdown 文件作为唯一来源。
+
 ### 5. 用户要求发邮件时发送简报
 
 仅当用户明确要求发到邮箱，且请求里提供了收件人邮箱地址时，执行发送流程。
@@ -111,6 +116,7 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 - 如果没有标题，则回退到文件名
 - 邮件正文同时包含纯文本和 HTML
 - 原始 Markdown 文件作为附件一并发送
+- Markdown 解析、标题提取和 HTML 渲染逻辑统一走 `scripts/markdown_utils.py`
 - SMTP 配置来自环境变量，具体见 `references/smtp-env.md`
 - 如果缺少收件人邮箱地址，需要用一句简短问题向用户补齐
 - 如果网络被限制，不能假装已发送，必须明确报告限制
@@ -150,11 +156,14 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
 
 - 默认行为是“写 Markdown 文件”后再“创建公众号草稿”
 - 只有用户明确要求直接发布时，才传 `--publish`
+- 标题默认从 Markdown 第一行标题提取；摘要默认优先取 `WECHAT_DEFAULT_DIGEST`，否则从 Markdown 正文自动压缩生成
 - 公众号图文草稿必须有封面，因此需要：
   - 环境变量 `WECHAT_DEFAULT_THUMB_MEDIA_ID`
   - 或运行参数 `--thumb-media-id`
   - 或运行参数 `--thumb-image /absolute/path/to/cover.png`
+- `--thumb-image` 可以是本地文件路径，也可以是可访问的远程图片 URL
 - Markdown 中如果带图片，脚本默认会把图片上传到微信正文图片接口后替换 URL
+- 如需检查最终请求体或联调接口，优先使用 `--dry-run`，必要时加 `--payload-output /tmp/xxx.json`
 - 如果用户只是要“生成草稿，我自己点发布”，最终响应只需要简短确认草稿创建结果，不要重复整篇简报
 - 如果网络被限制、缺少公众号权限或缺少封面图，不能假装已发布，必须明确报告失败原因
 
