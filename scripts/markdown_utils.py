@@ -43,6 +43,10 @@ WECHAT_STYLES = {
         "color:#2755a5;text-decoration:none;"
         "border-bottom:1px solid rgba(39,85,165,0.25);word-break:break-all;"
     ),
+    "li_link_p": "margin:4px 0 8px 0;font-size:14px;line-height:1.8;color:#5b6b82;",
+    "project_link_anchor": (
+        "color:#1d4ed8;text-decoration:none;font-weight:500;word-break:break-all;"
+    ),
     "strong": "font-weight:700;color:#111827;",
     "em": "font-style:italic;color:#374151;",
     "code": (
@@ -120,8 +124,58 @@ def wrap_html_document(body: str) -> str:
 
 
 def markdown_to_wechat_html(markdown_text: str) -> str:
-    body = simple_markdown_to_html(markdown_text, wechat_style=True)
+    body = simple_markdown_to_html(preprocess_wechat_markdown(markdown_text), wechat_style=True)
     return f'<section style="{WECHAT_STYLES["body"]}">{body}</section>'
+
+
+def preprocess_wechat_markdown(markdown_text: str) -> str:
+    lines = markdown_text.splitlines()
+    transformed: list[str] = []
+    in_open_source_section = False
+    first_h1_skipped = False
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if not first_h1_skipped and re.match(r"^#\s+.+", stripped):
+            first_h1_skipped = True
+            i += 1
+            continue
+
+        if (
+            not first_h1_skipped
+            and stripped
+            and i + 1 < len(lines)
+            and lines[i + 1].strip()
+            and set(lines[i + 1].strip()) <= {"="}
+        ):
+            first_h1_skipped = True
+            i += 2
+            continue
+
+        heading = re.match(r"^(#{1,6})\s+(.+?)\s*$", stripped)
+        if heading:
+            level = len(heading.group(1))
+            title = heading.group(2).strip()
+            in_open_source_section = level == 3 and title == "开源项目"
+            transformed.append(line)
+            i += 1
+            continue
+
+        if in_open_source_section and re.match(r"^[-*+]\s+", stripped):
+            match = re.match(r"^([-*+]\s+.+?)\s+-\s+(https?://\S+)\s*$", stripped)
+            if match:
+                transformed.append(match.group(1))
+                transformed.append(f"  项目链接: {match.group(2)}")
+                i += 1
+                continue
+
+        transformed.append(line)
+        i += 1
+
+    return "\n".join(transformed)
 
 
 def simple_markdown_to_html(markdown_text: str, wechat_style: bool = False) -> str:
@@ -332,13 +386,22 @@ def render_list_item(lines: list[str], wechat_style: bool = False) -> str:
     paragraph: list[str] = []
 
     for line in lines:
-        if re.match(r"^(链接|Link)[:：]\s*", line) and paragraph:
+        if re.match(r"^(链接|Link|项目链接)[:：]\s*", line) and paragraph:
             chunks.append(
                 open_tag("p", wechat_style, nested_in="li")
                 + format_inline(" ".join(paragraph), wechat_style)
                 + close_tag("p")
             )
             paragraph = []
+        if re.match(r"^项目链接[:：]\s*", line):
+            if wechat_style:
+                chunks.append(render_project_link_line(line))
+            else:
+                paragraph.append(re.sub(r"^项目链接", "链接", line, count=1))
+            continue
+        if re.match(r"^(链接|Link)[:：]\s*", line):
+            paragraph.append(line)
+            continue
         if not line:
             if paragraph:
                 chunks.append(
@@ -365,6 +428,19 @@ def render_list_item(lines: list[str], wechat_style: bool = False) -> str:
     ):
         return chunks[0][3:-4]
     return "".join(chunks)
+
+
+def render_project_link_line(line: str) -> str:
+    link_text = re.sub(r"^项目链接[:：]\s*", "", line).strip()
+    if re.match(r"https?://\S+$", link_text):
+        rendered = (
+            f'<a href="{link_text}" style="{WECHAT_STYLES["project_link_anchor"]}">'
+            f"{html.escape(link_text)}"
+            "</a>"
+        )
+    else:
+        rendered = format_inline(link_text, wechat_style=True)
+    return f'<p style="{WECHAT_STYLES["li_link_p"]}">{rendered}</p>'
 
 
 def format_inline(text: str, wechat_style: bool = False) -> str:
