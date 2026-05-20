@@ -34,9 +34,10 @@ Claude Code 执行 skill 内的 shell 命令时，当前工作目录不一定是
 
 因此：
 
-- 运行本 skill 自带脚本时，必须使用 `${CLAUDE_SKILL_DIR}` 前缀，不要写 `python3 scripts/...`
-- 读取本 skill 附带的参考文件时，优先使用相对链接让 Claude 按需读取，或在 shell 中显式使用 `${CLAUDE_SKILL_DIR}/...`
-- 只有日报输出文件这类用户产物，才应该写到当前工作目录或用户指定路径；skill 自带脚本和资源文件都必须从 `${CLAUDE_SKILL_DIR}` 解析
+- 本文里的命令默认都按 skill 目录作为当前工作目录来写
+- 如果在 Claude Code 里执行时当前目录不是这个 skill 目录，需要手动给脚本路径补上 `${CLAUDE_SKILL_DIR}/`
+- 读取本 skill 附带的参考文件时，优先使用相对链接让 Claude 按需读取；只有在 shell 中直接访问文件时，才需要显式使用 `${CLAUDE_SKILL_DIR}/...`
+- 只有日报输出文件这类用户产物，才应该写到当前工作目录或用户指定路径；不要把生成结果写回 skill 自带目录
 
 ## 工作流
 
@@ -45,7 +46,7 @@ Claude Code 执行 skill 内的 shell 命令时，当前工作目录不一定是
 先运行：
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/ai-news-wechat.json
+python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/ai-news-wechat.json
 ```
 
 规则：
@@ -111,13 +112,13 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/fetch_wechat_articles.py --limit 15 --days 1
 使用：
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com
 ```
 
 需要先验证配置、解析结果或当前环境网络受限时，使用：
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com --dry-run
+python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com --dry-run
 ```
 
 发信规则：
@@ -126,7 +127,7 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/send_markdown_email.py /absolute/path/to/ai-
 - 如果没有标题，则回退到文件名
 - 邮件正文同时包含纯文本和 HTML
 - 原始 Markdown 文件作为附件一并发送
-- Markdown 解析、标题提取和 HTML 渲染逻辑统一走 `${CLAUDE_SKILL_DIR}/scripts/markdown_utils.py`
+- Markdown 解析、标题提取和 HTML 渲染逻辑统一走 `scripts/markdown_utils.py`
 - SMTP 配置来自环境变量，具体见 [references/smtp-env.md](references/smtp-env.md)
 - 如果缺少收件人邮箱地址，需要用一句简短问题向用户补齐
 - 如果网络被限制，不能假装已发送，必须明确报告限制
@@ -147,19 +148,19 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/send_markdown_email.py /absolute/path/to/ai-
 使用：
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md
 ```
 
 如果用户明确要求直接发布，才使用：
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --publish
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --publish
 ```
 
 需要先验证配置、标题、摘要、HTML 或请求体时，使用：
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --dry-run
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --dry-run
 ```
 
 公众号规则：
