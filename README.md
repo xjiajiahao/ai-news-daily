@@ -1,12 +1,13 @@
 # ai-news-daily
 
-`ai-news-daily` 是一个面向 Codex 的 skill，用于收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术、产品、开源生态取向的日报，并在用户明确要求时把生成的 Markdown 简报发送到指定邮箱。
+`ai-news-daily` 是一个面向 Codex 的 skill，用于收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术、产品、开源生态取向的日报，并在用户明确要求时把生成的 Markdown 简报发送到指定邮箱或微信公众号草稿箱。
 
-仓库当前包含三部分能力：
+仓库当前包含四部分能力：
 
 - `SKILL.md`：定义 skill 的触发条件、工作流和输出要求
 - `scripts/fetch_wechat_articles.py`：拉取配置公众号最新文章列表，供日报生成阶段使用
 - `scripts/send_markdown_email.py`：把生成好的 Markdown 简报作为邮件正文和附件发送
+- `scripts/send_markdown_wechat.py`：把生成好的 Markdown 简报转换成公众号图文草稿，并可选提交发布
 
 ## 适用场景
 
@@ -16,6 +17,7 @@
 - 汇总近 24 小时 AI 技术、模型、产品、Agent、开源项目动态
 - 为每日晨报、群内播报、内部情报汇总准备结构化素材
 - 把已经生成的 AI 简报发到指定邮箱
+- 把已经生成的 AI 简报发到微信公众号草稿箱
 
 默认数据源：
 
@@ -46,10 +48,13 @@
 ├── references/
 │   ├── mptext-api.md
 │   ├── smtp-env.md
-│   └── source_accounts.json
+│   ├── source_accounts.json
+│   └── wechat-official-account-env.md
 └── scripts/
     ├── fetch_wechat_articles.py
-    └── send_markdown_email.py
+    ├── markdown_utils.py
+    ├── send_markdown_email.py
+    └── send_markdown_wechat.py
 ```
 
 ## 运行要求
@@ -58,6 +63,7 @@
 - 可访问 `https://down.mptext.top`
 - 有效的 mptext API Key
 - 如需发送邮件，还需要可用的 SMTP 配置
+- 如需推送到微信公众号，还需要可用的公众号开发配置
 
 推荐通过环境变量提供密钥：
 
@@ -80,6 +86,17 @@ export MPTEXT_API_KEY="your-api-key"
 - 可选：`SMTP_SECURITY`
 
 具体示例见 `references/smtp-env.md`。
+
+发送到微信公众号时额外需要：
+
+- `WECHAT_APP_ID`
+- `WECHAT_APP_SECRET`
+- 可选：`WECHAT_AUTHOR`
+- 可选：`WECHAT_DEFAULT_DIGEST`
+- 可选：`WECHAT_CONTENT_SOURCE_URL`
+- 可选：`WECHAT_DEFAULT_THUMB_MEDIA_ID`
+
+具体示例见 `references/wechat-official-account-env.md`。
 
 ## 快速开始
 
@@ -116,7 +133,7 @@ python3 scripts/fetch_wechat_articles.py \
 python3 scripts/fetch_wechat_articles.py --compact
 ```
 
-### 4. 发送已生成的简报
+### 4. 发送已生成的简报邮件
 
 ```bash
 python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com
@@ -126,6 +143,31 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 
 ```bash
 python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com --dry-run
+```
+
+### 5. 创建微信公众号草稿
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md
+```
+
+如果封面图还没上传成 `media_id`，可以直接传本地文件或远程图片地址：
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md \
+  --thumb-image /absolute/path/to/cover.png
+```
+
+如果要先验证标题、摘要、HTML 与接口请求体：
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --dry-run
+```
+
+如果用户明确要求直接发布，再显式提交发布任务：
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --publish
 ```
 
 ## 脚本参数
@@ -148,6 +190,8 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 
 ```bash
 python3 scripts/fetch_wechat_articles.py --help
+python3 scripts/send_markdown_email.py --help
+python3 scripts/send_markdown_wechat.py --help
 ```
 
 ## 输出格式
@@ -215,6 +259,7 @@ skill 的工作流是：
 3. 归并、去重、筛选，优先保留技术、产品和开源生态消息
 4. 输出 Markdown 简报，并写入当前目录下的 `ai-news-daily-YYYY-MM-DD.md`
 5. 如果用户明确要求发到邮箱，则调用 `scripts/send_markdown_email.py` 发送该 Markdown 文件
+6. 如果用户明确要求发到微信公众号，则调用 `scripts/send_markdown_wechat.py` 创建草稿；只有明确要求直接发布时才传 `--publish`
 
 日报默认输出结构：
 
@@ -229,9 +274,11 @@ skill 的工作流是：
 
 如果用户要求“把简报发到邮箱”，仍然直接使用 `ai-news-daily` 即可，不需要切换到独立的邮件 skill。
 
+如果用户要求“发到微信公众号”或“帮我生成公众号草稿”，也仍然直接使用 `ai-news-daily` 即可，不需要切到别的 skill。
+
 ## 配置说明
 
-### 公众号配置
+### 公众号源配置
 
 `references/source_accounts.json` 中保存每个目标账号的匹配信息：
 
@@ -253,37 +300,8 @@ skill 的工作流是：
 - 文章列表接口
 - 当前脚本实际依赖的返回字段
 
-## 常见问题
+### 微信公众号发布说明
 
-### 1. 提示缺少 API Key
+环境变量和使用示例见 `references/wechat-official-account-env.md`。
 
-脚本会直接退出并提示：
-
-```text
-Missing mptext API key. Set MPTEXT_API_KEY or pass --api-key.
-```
-
-处理方式是设置 `MPTEXT_API_KEY`，或在命令行传入 `--api-key`。
-
-### 2. 某个公众号抓取失败
-
-失败信息会进入输出 JSON 的 `errors` 字段。常见原因包括：
-
-- 搜索结果没有稳定命中目标账号
-- 接口网络异常
-- API Key 无效或额度受限
-
-如果需要排查接口问题，优先查看 `references/mptext-api.md`。
-
-## 开发说明
-
-如果你要扩展这个仓库，通常会改动这几个位置：
-
-- 修改抓取逻辑：`scripts/fetch_wechat_articles.py`
-- 修改邮件发送逻辑：`scripts/send_markdown_email.py`
-- 增删数据源：`references/source_accounts.json`
-- 调整 SMTP 说明：`references/smtp-env.md`
-- 调整日报工作流与输出规范：`SKILL.md`
-- 调整 skill 展示信息：`agents/openai.yaml`
-
-保持这些文件的一致性比单独修改某一处更重要，否则 skill 的行为、文档和展示配置会脱节。
+脚本默认行为是创建草稿，不会直接发布。只有显式传 `--publish` 时，才会在草稿创建成功后提交发布任务。

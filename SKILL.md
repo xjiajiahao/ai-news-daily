@@ -1,6 +1,6 @@
 ---
 name: ai-news-daily
-description: 收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术/产品取向的简报；当用户明确要求时，将简报发送到指定邮箱
+description: 收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术/产品取向的简报；当用户明确要求时，将简报发送到指定邮箱或微信公众号草稿箱
 ---
 
 # AI 每日新闻简报
@@ -9,7 +9,7 @@ description: 收集每日 AI 技术与产品动态，聚合 GitHub Trending 与�
 
 当用户要看“今天 AI 有什么新东西”、“做一份 AI 日报”、“汇总最新 AI 技术/产品动态”、“Anything new?”时使用。
 
-如果用户明确要求“把简报发到邮箱”“发给某个收件人”“邮件发送日报”，也继续使用这个 skill，不需要切到别的 skill。
+如果用户明确要求“把简报发到邮箱”“发给某个收件人”“邮件发送日报”“发到微信公众号”“生成公众号草稿”，也继续使用这个 skill，不需要切到别的 skill。
 
 ## 数据源
 
@@ -87,7 +87,7 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 
 简报必须同时写成当前目录下的 Markdown 文件，文件名默认使用 `ai-news-daily-YYYY-MM-DD.md`。
 
-如果用户没有单独指定文件名，就按这个默认文件名写出，后续发邮件也使用这个文件。
+如果用户没有单独指定文件名，就按这个默认文件名写出，后续发邮件或发公众号也使用这个文件。
 
 ### 5. 用户要求发邮件时发送简报
 
@@ -123,6 +123,49 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 - `SMTP_PASSWORD`
 - 可选：`SMTP_FROM_NAME`
 - 可选：`SMTP_SECURITY`，可用值为 `auto`、`ssl`、`starttls`、`plain`
+
+### 6. 用户要求发到微信公众号时创建草稿或提交发布
+
+默认优先创建公众号草稿，不要默认直接发布。
+
+使用：
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md
+```
+
+如果用户明确要求直接发布，才使用：
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --publish
+```
+
+需要先验证配置、标题、摘要、HTML 或请求体时，使用：
+
+```bash
+python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md --dry-run
+```
+
+公众号规则：
+
+- 默认行为是“写 Markdown 文件”后再“创建公众号草稿”
+- 只有用户明确要求直接发布时，才传 `--publish`
+- 公众号图文草稿必须有封面，因此需要：
+  - 环境变量 `WECHAT_DEFAULT_THUMB_MEDIA_ID`
+  - 或运行参数 `--thumb-media-id`
+  - 或运行参数 `--thumb-image /absolute/path/to/cover.png`
+- Markdown 中如果带图片，脚本默认会把图片上传到微信正文图片接口后替换 URL
+- 如果用户只是要“生成草稿，我自己点发布”，最终响应只需要简短确认草稿创建结果，不要重复整篇简报
+- 如果网络被限制、缺少公众号权限或缺少封面图，不能假装已发布，必须明确报告失败原因
+
+公众号环境变量：
+
+- `WECHAT_APP_ID`
+- `WECHAT_APP_SECRET`
+- 可选：`WECHAT_AUTHOR`
+- 可选：`WECHAT_DEFAULT_DIGEST`
+- 可选：`WECHAT_CONTENT_SOURCE_URL`
+- 可选：`WECHAT_DEFAULT_THUMB_MEDIA_ID`
 
 ## 输出格式
 
@@ -160,3 +203,4 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 - 商业新闻不允许为了凑数挤占 Top 10
 - 仅在用户只是要简报正文时，结果只输出简报正文，不要追加“如果你要，我可以继续…”之类的收尾话术
 - 如果用户要求发邮件，先生成并写入 Markdown，再执行发送；最终响应只需要简短确认发送结果或失败原因，不要再重复整篇简报，除非用户明确要求同时展示正文
+- 如果用户要求发到微信公众号，先生成并写入 Markdown，再执行草稿创建或发布；最终响应只需要简短确认结果或失败原因，不要再重复整篇简报，除非用户明确要求同时展示正文

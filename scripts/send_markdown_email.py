@@ -4,10 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import html
 import mimetypes
 import os
-import re
 import smtplib
 import ssl
 from dataclasses import dataclass
@@ -15,6 +13,8 @@ from email.message import EmailMessage
 from email.utils import formataddr, parseaddr
 from pathlib import Path
 from typing import Iterable
+
+from markdown_utils import derive_title, load_markdown, markdown_to_html, wrap_html_document
 
 
 REQUIRED_ENV_VARS = ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD")
@@ -116,278 +116,6 @@ def validate_emails(values: Iterable[str], label: str) -> list[str]:
     return validated
 
 
-def load_markdown(path_str: str) -> tuple[Path, str]:
-    path = Path(path_str).expanduser().resolve()
-    if not path.is_file():
-        raise SystemExit(f"Markdown file not found: {path}")
-    try:
-        content = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise SystemExit(f"Markdown file must be UTF-8 encoded: {path}") from exc
-    return path, content
-
-
-def derive_subject(path: Path, markdown_text: str) -> str:
-    lines = markdown_text.splitlines()
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        heading = re.match(r"^#{1,6}\s+(.+?)\s*$", stripped)
-        if heading:
-            return cleanup_subject(heading.group(1))
-        if index + 1 < len(lines):
-            underline = lines[index + 1].strip()
-            if underline and set(underline) <= {"=", "-"}:
-                return cleanup_subject(stripped)
-        break
-    return cleanup_subject(path.stem)
-
-
-def cleanup_subject(value: str) -> str:
-    cleaned = re.sub(r"\s+", " ", value.replace("`", "")).strip()
-    return cleaned or "Markdown Email"
-
-
-def markdown_to_html(markdown_text: str) -> str:
-    try:
-        import markdown as markdown_lib  # type: ignore
-
-        body = markdown_lib.markdown(
-            markdown_text,
-            extensions=["fenced_code", "tables", "nl2br"],
-        )
-        return wrap_html(body)
-    except ImportError:
-        return wrap_html(simple_markdown_to_html(markdown_text))
-
-
-def wrap_html(body: str) -> str:
-    return (
-        "<html><body "
-        "style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
-        "line-height:1.6;color:#1f2328;max-width:720px;margin:0 auto;padding:24px;\">"
-        f"{body}</body></html>"
-    )
-
-
-def simple_markdown_to_html(markdown_text: str) -> str:
-    blocks: list[str] = []
-    lines = markdown_text.splitlines()
-    i = 0
-    in_code_block = False
-    code_lines: list[str] = []
-
-    while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
-
-        if stripped.startswith("```"):
-            if in_code_block:
-                blocks.append(
-                    "<pre><code>"
-                    + html.escape("\n".join(code_lines))
-                    + "</code></pre>"
-                )
-                code_lines = []
-                in_code_block = False
-            else:
-                in_code_block = True
-            i += 1
-            continue
-
-        if in_code_block:
-            code_lines.append(line)
-            i += 1
-            continue
-
-        if not stripped:
-            i += 1
-            continue
-
-        heading = re.match(r"^(#{1,6})\s+(.+?)\s*$", stripped)
-        if heading:
-            level = len(heading.group(1))
-            blocks.append(f"<h{level}>{format_inline(heading.group(2))}</h{level}>")
-            i += 1
-            continue
-
-        if (
-            i + 1 < len(lines)
-            and lines[i + 1].strip()
-            and set(lines[i + 1].strip()) <= {"=", "-"}
-        ):
-            level = 1 if "=" in lines[i + 1] else 2
-            blocks.append(f"<h{level}>{format_inline(stripped)}</h{level}>")
-            i += 2
-            continue
-
-        if re.match(r"^[-*+]\s+", stripped):
-            items, i = consume_list(lines, i, ordered=False)
-            blocks.append("<ul>" + "".join(items) + "</ul>")
-            continue
-
-        if re.match(r"^\d+\.\s+", stripped):
-            items, i = consume_list(lines, i, ordered=True)
-            blocks.append("<ol>" + "".join(items) + "</ol>")
-            continue
-
-        paragraph: list[str] = [stripped]
-        i += 1
-        while i < len(lines):
-            next_line = lines[i].strip()
-            if not next_line:
-                break
-            if (
-                next_line.startswith("```")
-                or re.match(r"^(#{1,6})\s+", next_line)
-                or re.match(r"^[-*+]\s+", next_line)
-                or re.match(r"^\d+\.\s+", next_line)
-            ):
-                break
-            paragraph.append(next_line)
-            i += 1
-        blocks.append("<p>" + format_inline(" ".join(paragraph)) + "</p>")
-
-    if in_code_block and code_lines:
-        blocks.append("<pre><code>" + html.escape("\n".join(code_lines)) + "</code></pre>")
-
-    return "\n".join(blocks)
-
-
-def consume_list(lines: list[str], start: int, ordered: bool) -> tuple[list[str], int]:
-    items: list[str] = []
-    marker_pattern = r"^\d+\.\s+" if ordered else r"^[-*+]\s+"
-    i = start
-
-    while i < len(lines):
-        stripped = lines[i].strip()
-        if not re.match(marker_pattern, stripped):
-            break
-
-        item_lines = [re.sub(marker_pattern, "", stripped)]
-        i += 1
-
-        while i < len(lines):
-            raw_line = lines[i]
-            next_line = raw_line.strip()
-
-            if not next_line:
-                if i + 1 < len(lines) and should_continue_list_item(
-                    lines, i + 1, ordered
-                ):
-                    item_lines.append("")
-                    i += 1
-                    continue
-                break
-
-            if starts_block(next_line):
-                break
-
-            if raw_line.startswith((" ", "\t")):
-                item_lines.append(next_line)
-                i += 1
-                continue
-
-            if ordered and re.match(r"^\d+\.\s+", next_line):
-                break
-
-            if not ordered and re.match(r"^[-*+]\s+", next_line):
-                break
-
-            item_lines.append(next_line)
-            i += 1
-
-        items.append("<li>" + render_list_item(item_lines) + "</li>")
-
-        while i < len(lines) and not lines[i].strip():
-            if i + 1 < len(lines) and should_continue_list_item(lines, i + 1, ordered):
-                break
-            i += 1
-
-    return items, i
-
-
-def should_continue_list_item(lines: list[str], index: int, ordered: bool) -> bool:
-    if index >= len(lines):
-        return False
-    stripped = lines[index].strip()
-    if not stripped:
-        return False
-    if starts_block(stripped):
-        return False
-    marker_pattern = r"^\d+\.\s+" if ordered else r"^[-*+]\s+"
-    return not re.match(marker_pattern, stripped)
-
-
-def starts_block(stripped: str) -> bool:
-    return bool(
-        stripped.startswith("```")
-        or re.match(r"^(#{1,6})\s+", stripped)
-        or re.match(r"^[-*+]\s+", stripped)
-        or re.match(r"^\d+\.\s+", stripped)
-    )
-
-
-def render_list_item(lines: list[str]) -> str:
-    chunks: list[str] = []
-    paragraph: list[str] = []
-
-    for line in lines:
-        if not line:
-            if paragraph:
-                chunks.append("<p>" + format_inline(" ".join(paragraph)) + "</p>")
-                paragraph = []
-            continue
-        paragraph.append(line)
-
-    if paragraph:
-        chunks.append("<p>" + format_inline(" ".join(paragraph)) + "</p>")
-
-    if len(chunks) == 1 and chunks[0].startswith("<p>") and chunks[0].endswith("</p>"):
-        return chunks[0][3:-4]
-    return "".join(chunks)
-
-
-def format_inline(text: str) -> str:
-    escaped = html.escape(text)
-    placeholders: list[str] = []
-
-    def stash(match: re.Match[str]) -> str:
-        placeholders.append(match.group(0))
-        return f"@@INLINE_{len(placeholders) - 1}@@"
-
-    # Protect inline code and links before emphasis replacement so URL underscores
-    # and asterisks do not get interpreted as Markdown formatting.
-    escaped = re.sub(r"`(.+?)`", stash, escaped)
-    escaped = re.sub(r"\[(.+?)\]\((.+?)\)", stash, escaped)
-    escaped = re.sub(r"https?://[^\s<]+", stash, escaped)
-
-    replacements: Iterable[tuple[str, str]] = (
-        (r"\*\*(.+?)\*\*", r"<strong>\1</strong>"),
-        (r"__(.+?)__", r"<strong>\1</strong>"),
-        (r"(?<!\w)\*(.+?)\*(?!\w)", r"<em>\1</em>"),
-        (r"(?<!\w)_(.+?)_(?!\w)", r"<em>\1</em>"),
-    )
-    for pattern, replacement in replacements:
-        escaped = re.sub(pattern, replacement, escaped)
-
-    for index, raw in enumerate(placeholders):
-        if raw.startswith("`") and raw.endswith("`"):
-            rendered = "<code>" + raw[1:-1] + "</code>"
-        elif raw.startswith("["):
-            match = re.match(r"\[(.+?)\]\((.+?)\)", raw)
-            if match:
-                rendered = f'<a href="{match.group(2)}">{match.group(1)}</a>'
-            else:
-                rendered = raw
-        else:
-            rendered = f'<a href="{raw}">{raw}</a>'
-        escaped = escaped.replace(f"@@INLINE_{index}@@", rendered)
-
-    return escaped
-
-
 def build_message(
     config: SmtpConfig,
     markdown_path: Path,
@@ -406,7 +134,10 @@ def build_message(
         message["Cc"] = ", ".join(cc_recipients)
     message["Subject"] = subject
     message.set_content(markdown_text)
-    message.add_alternative(markdown_to_html(markdown_text), subtype="html")
+    message.add_alternative(
+        wrap_html_document(markdown_to_html(markdown_text)),
+        subtype="html",
+    )
     content_type, _ = mimetypes.guess_type(markdown_path.name)
     if content_type:
         maintype, subtype = content_type.split("/", 1)
@@ -448,7 +179,7 @@ def main() -> None:
     recipients = validate_emails(args.recipients, "recipient")
     cc_recipients = validate_emails(flatten_addresses(args.cc), "cc recipient")
     path, markdown_text = load_markdown(args.markdown_path)
-    subject = derive_subject(path, markdown_text)
+    subject = derive_title(path, markdown_text, fallback="Markdown Email")
     message = build_message(
         config,
         path,
