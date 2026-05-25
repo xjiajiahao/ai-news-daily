@@ -2,10 +2,11 @@
 
 `ai-news-daily` 是一个面向 Codex 的 skill，用于收集每日 AI 技术与产品动态，聚合 GitHub Trending 与指定微信公众号文章列表，生成偏技术、产品、开源生态取向的日报，并在用户明确要求时把生成的 Markdown 简报发送到指定邮箱或微信公众号草稿箱。
 
-仓库当前包含五部分能力：
+仓库当前包含六部分能力：
 
 - `SKILL.md`：定义 skill 的触发条件、工作流和输出要求
 - `scripts/fetch_wechat_articles.py`：拉取配置公众号最新文章列表，供日报生成阶段使用
+- `scripts/fetch_github_trending.py`：抓取并分析 GitHub Trending，筛出 AI 相关开源项目
 - `scripts/markdown_utils.py`：复用 Markdown 标题提取、HTML 渲染与公众号 HTML 转换逻辑
 - `scripts/send_markdown_email.py`：把生成好的 Markdown 简报作为邮件正文和附件发送
 - `scripts/send_markdown_wechat.py`：把生成好的 Markdown 简报转换成公众号图文草稿，并可选提交发布
@@ -54,6 +55,7 @@
 ├── asset/
 │   └── ai-news-daily.png
 └── scripts/
+    ├── fetch_github_trending.py
     ├── fetch_wechat_articles.py
     ├── markdown_utils.py
     ├── send_markdown_email.py
@@ -136,7 +138,42 @@ python3 scripts/fetch_wechat_articles.py \
 python3 scripts/fetch_wechat_articles.py --compact
 ```
 
-### 4. 发送已生成的简报邮件
+### 4. 拉取并分析 GitHub Trending
+
+```bash
+python3 scripts/fetch_github_trending.py \
+  --since daily \
+  --limit 15 \
+  --json-output /tmp/ai-news-trending.json
+```
+
+这会：
+
+- 抓取 GitHub Trending Daily 页面
+- 解析仓库名、描述、语言、累计 Star、当日新增 Star
+- 用内置关键词给仓库做 AI 相关性打分
+- 默认只输出 AI 相关项目
+
+如果要同时保留全部 Trending 项目用于人工筛选：
+
+```bash
+python3 scripts/fetch_github_trending.py \
+  --since daily \
+  --all \
+  --json-output /tmp/github-trending.json
+```
+
+如果 GitHub 页面结构变化，需要保留原始 HTML 便于排查：
+
+```bash
+python3 scripts/fetch_github_trending.py \
+  --since daily \
+  --all \
+  --html-output /tmp/github-trending.html \
+  --json-output /tmp/github-trending.json
+```
+
+### 5. 发送已生成的简报邮件
 
 ```bash
 python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md recipient1@example.com recipient2@example.com --cc manager@example.com
@@ -155,7 +192,7 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 - 原始 Markdown 文件会作为附件一并发送
 - `SMTP_SECURITY=auto` 时，会按端口自动推断 `ssl`、`starttls` 或 `plain`
 
-### 5. 创建微信公众号草稿
+### 6. 创建微信公众号草稿
 
 ```bash
 python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.md
@@ -213,10 +250,24 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
 - `--compact`：输出紧凑 JSON
 - `--summary-max-chars`：摘要最大保留字符数
 
+`scripts/fetch_github_trending.py` 支持以下主要参数：
+
+- `--base-url`：指定 Trending 基础地址，默认 `https://github.com/trending`
+- `--language`：指定语言路径，如 `python`、`typescript`
+- `--since`：趋势时间窗，可选 `daily`、`weekly`、`monthly`
+- `--limit`：输出保留的仓库数量
+- `--top`：只分析前 N 个解析到的趋势仓库
+- `--keyword`：追加 AI 相关关键词，可重复传入
+- `--all`：输出全部趋势项目，而不只保留 AI 相关项目
+- `--json-output`：把结果写入本地文件
+- `--html-output`：把抓到的原始 HTML 落盘，便于页面结构变更时排查
+- `--compact`：输出紧凑 JSON
+
 完整帮助：
 
 ```bash
 python3 scripts/fetch_wechat_articles.py --help
+python3 scripts/fetch_github_trending.py --help
 python3 scripts/send_markdown_email.py --help
 python3 scripts/send_markdown_wechat.py --help
 ```
@@ -232,6 +283,8 @@ python3 scripts/send_markdown_wechat.py --help
 - `--payload-output`：把最终草稿请求体写到本地 JSON 文件
 
 ## 输出格式
+
+### 公众号文章抓取输出
 
 脚本输出 JSON，顶层字段包括：
 
@@ -282,6 +335,33 @@ python3 scripts/send_markdown_wechat.py --help
 }
 ```
 
+### GitHub Trending 输出
+
+`scripts/fetch_github_trending.py` 输出 JSON，顶层字段包括：
+
+- `fetched_at`：抓取时间
+- `source_url`：实际访问的 Trending URL
+- `language`：指定的语言过滤条件
+- `since`：趋势时间窗
+- `requested_limit`：请求输出上限
+- `parsed_count`：页面中实际解析到的仓库数量
+- `ai_relevant_count`：识别为 AI 相关的仓库数量
+- `keywords`：用于 AI 相关性判断的关键词列表
+- `repositories`：最终输出的趋势仓库列表
+
+`repositories[]` 中包含：
+
+- `repo`：`owner/name`
+- `url`：仓库链接
+- `description`：仓库描述
+- `language`：主要语言
+- `stars`：累计 Star 数
+- `today_stars`：Trending 页面展示的当日新增 Star 数
+- `forks`：Fork 数
+- `built_by`：页面中的贡献者用户名
+- `ai_score`：基于关键词的 AI 相关性打分
+- `ai_keywords`：命中的关键词
+
 ## 作为 Codex Skill 使用
 
 这个仓库本身是一个 skill，核心行为定义在 `SKILL.md`。
@@ -289,7 +369,7 @@ python3 scripts/send_markdown_wechat.py --help
 skill 的工作流是：
 
 1. 先运行 `scripts/fetch_wechat_articles.py` 拉取公众号文章列表
-2. 再收集 GitHub Trending 中 AI / ML / Agent / 多模态 / 图像 / 语音 / 推理 / 数据工具相关项目
+2. 再运行 `scripts/fetch_github_trending.py` 收集 GitHub Trending 中 AI / ML / Agent / 多模态 / 图像 / 语音 / 推理 / 数据工具相关项目
    - `Stars` 使用项目当前累计 Star 总数
    - `今日增长` 使用 GitHub Trending 页面显示的当日新增 Star 数
    - 不要把累计 Star 和今日增长写成同一个值，除非源页面确实一致

@@ -28,6 +28,14 @@ description: 收集每日 AI 技术与产品动态，聚合 GitHub Trending 与�
 
 微信公众号文章列表统一通过 `scripts/fetch_wechat_articles.py` 获取。
 
+严格限制：
+
+- 只允许使用本 skill 明确列出的两个数据源：微信公众号文章列表和 GitHub Trending
+- 不允许为了“补充信息”“交叉验证”“查官方原文”“补当天新闻”而额外搜索外网、浏览新闻站、搜索引擎、官方博客或任意第三方站点
+- 不允许在公众号抓取正常返回后，再去外网补充“本日 AI 新闻”
+- 如果公众号抓取失败，或结果里 `sources` 为空，必须立即停止任务并明确报告失败原因；不要改用外部网站兜底，不要继续生成日报，不要继续发邮件或发公众号
+- 如果 GitHub Trending 抓取失败，也必须明确报告失败原因并停止任务；不要改用其他开源榜单代替
+
 ## Claude Code 兼容规则
 
 Claude Code 执行 skill 内的 shell 命令时，当前工作目录不一定是这个 skill 目录。
@@ -62,15 +70,47 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 
 仅在需要改脚本或排查接口异常时，再读 [references/mptext-api.md](references/mptext-api.md)。
 
+硬性规则：
+
+- 抓取完成后，必须先检查输出 JSON
+- 如果命令失败、JSON 不存在、`sources` 为空，或所有账号都落在 `errors` 中，立即停止任务并向用户报告“公众号抓取失败”
+- 失败后禁止继续执行 GitHub Trending、外部搜索、写 Markdown、发邮件、发公众号中的任何一步
+
 ### 2. 收集 GitHub Trending
 
-访问 `https://github.com/trending`。
+运行：
+
+```bash
+python3 scripts/fetch_github_trending.py --since daily --limit 15 --json-output /tmp/ai-news-trending.json
+```
+
+默认会抓取 GitHub Trending Daily，并优先保留 AI / ML / Agent / 多模态 / 语音 / 图像 / 推理 / 数据工具相关项目。
 
 重点关注：
 
 - AI / ML / Agent / 多模态 / 语音 / 图像 / 推理 / 数据工具相关项目
 - 项目描述
 - 当日 Star 增长
+
+脚本输出 JSON，单条仓库会包含：
+
+- `repo`
+- `url`
+- `description`
+- `language`
+- `stars`
+- `today_stars`
+- `ai_score`
+- `ai_keywords`
+
+常用参数：
+
+- `--since daily|weekly|monthly`
+- `--language python`
+- `--limit 15`
+- `--all`：输出全部趋势项目，而不只保留 AI 相关项目
+- `--keyword xxx`：补充自定义关键词
+- `--html-output /tmp/trending.html`：排查 GitHub 页面结构变化时保存原始 HTML
 
 开源项目数据提取规则：
 
@@ -79,13 +119,19 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 - 如果只能拿到累计 Star、拿不到当日增长，就不要伪造“今日增长”数字
 - 严禁把累计 Star 总数和“今日增长”写成同一个值，除非源页面两者确实一致
 
+硬性规则：
+
+- 只有在“公众号抓取成功”之后，才能执行这一步
+- 如果 GitHub Trending 抓取失败，立即停止任务并报告失败原因
+- 失败后禁止改用其他网站、榜单或搜索结果替代
+
 ### 3. 归并与筛选
 
 默认优先级：
 
 1. 技术突破：新模型、训练/推理方法、评测、系统优化、论文和开源代码
 2. AI 产品：新功能上线、可体验产品、开发者工具、Agent 工作流
-3. 开源生态：GitHub Trending 上的 AI 项目
+3. 开源生态：`scripts/fetch_github_trending.py` 输出的 AI 相关趋势项目
 4. 商业信息：只在直接影响技术路线、产品能力或开源生态时保留
 
 处理规则：
@@ -96,6 +142,7 @@ python3 scripts/fetch_wechat_articles.py --limit 15 --days 1 --json-output /tmp/
 - `Top 10` 默认应以“模型 / 研究 / AI 产品 / 基础设施更新”为主，GitHub Trending 只作为补充信号
 - `Top 10` 中 GitHub Trending 条目默认不超过 2 条；只有当天公众号和产品信号明显不足时，才放宽到 3 条
 - GitHub Trending 更适合放在 `### 开源项目` 小节集中展示，不要用多个趋势项目挤占 `Top 10`
+- 不允许因为“公众号信息量不足”而切换到外部搜索补足条目；宁可减少候选范围，也不要引入未授权来源
 
 ### 4. 写出 Markdown 简报
 
@@ -221,6 +268,8 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
 - 每条至少包含标题和链接，尽量补一句摘要
 - 开源项目每条都要补一行一句话介绍，优先使用 GitHub Trending 的项目描述
 - 商业新闻不允许为了凑数挤占 Top 10
+- 数据来源只允许是微信公众号文章列表和 GitHub Trending；禁止混入外部检索结果
+- 如果公众号抓取失败或 GitHub Trending 抓取失败，必须停止任务并明确说明失败步骤与原因
 - 仅在用户只是要简报正文时，结果只输出简报正文，不要追加“如果你要，我可以继续…”之类的收尾话术
 - 如果用户要求发邮件，先生成并写入 Markdown，再执行发送；最终响应只需要简短确认发送结果或失败原因，不要再重复整篇简报，除非用户明确要求同时展示正文
 - 如果用户要求发到微信公众号，先生成并写入 Markdown，再执行草稿创建或发布；最终响应只需要简短确认结果或失败原因，不要再重复整篇简报，除非用户明确要求同时展示正文
