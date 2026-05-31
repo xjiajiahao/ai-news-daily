@@ -12,6 +12,7 @@ ENV/
 
 # Tool caches
 .pytest_cache/
+.cache/
 .mypy_cache/
 .ruff_cache/
 .pyre/

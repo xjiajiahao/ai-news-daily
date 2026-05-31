@@ -53,7 +53,8 @@
 │   ├── source_accounts.json
 │   └── wechat-official-account-env.md
 ├── asset/
-│   └── ai-news-daily.png
+│   ├── ai-news-daily.png
+│   └── ai-news-daily-small.png
 └── scripts/
     ├── fetch_github_trending.py
     ├── fetch_wechat_articles.py
@@ -205,6 +206,9 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
   --thumb-image /absolute/path/to/cover.png
 ```
 
+默认不传封面参数时，脚本会上传 `asset/ai-news-daily.png` 作为长条主封面，并把 `asset/ai-news-daily-small.png` 合成到同一个封面素材里作为 1:1 小封面裁剪区域。
+上传成功后会按 `WECHAT_APP_ID` 和封面内容哈希缓存 `media_id`；封面图片不变时会复用缓存，不会重复上传到素材库。如需强制重传，可加 `--refresh-thumb-media`。
+
 如果要先验证标题、摘要、HTML 与接口请求体：
 
 ```bash
@@ -228,11 +232,14 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
 公众号发送行为：
 
 - 默认只创建草稿，不会自动发布
-- 草稿必须有封面；可通过 `WECHAT_DEFAULT_THUMB_MEDIA_ID`、`--thumb-media-id` 或 `--thumb-image` 提供
+- 草稿必须有封面；默认使用 `asset/ai-news-daily.png` 和 `asset/ai-news-daily-small.png` 自动上传组合封面
+- 组合封面上传成功后会缓存 `media_id`，后续图片未变化时自动复用
+- `--thumb-media-id` 可强制复用已有封面素材；此模式无法指定独立小封面，只能由微信从同一素材裁剪
 - `--thumb-image` 支持本地文件路径和远程图片 URL
 - Markdown 中的图片默认会上传到微信正文图片接口后替换链接
 - 如果不希望自动重写正文图片，可传 `--skip-image-upload`
-- `--open-comment` 可开启评论，`--fans-only-comment` 需要和 `--open-comment` 一起使用
+- 默认开启留言且允许所有用户留言；`--no-open-comment` 可关闭留言
+- `--fans-only-comment` 可限制仅粉丝留言，需要保持留言开启
 
 ## 脚本参数
 
@@ -280,6 +287,8 @@ python3 scripts/send_markdown_wechat.py --help
 - `--content-source-url`：设置“原文链接”
 - `--thumb-media-id`：直接指定封面 `media_id`
 - `--thumb-image`：上传本地或远程封面图并自动使用返回的 `media_id`
+- `--small-thumb-image`：设置 1:1 小封面图片；默认使用 `asset/ai-news-daily-small.png`
+- `--refresh-thumb-media`：忽略封面缓存并重新上传素材
 - `--payload-output`：把最终草稿请求体写到本地 JSON 文件
 
 ## 输出格式
