@@ -53,6 +53,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Validate inputs and print derived metadata without sending email.",
     )
+    parser.add_argument(
+        "--attach",
+        action="append",
+        default=[],
+        help="Optional extra attachment paths. Repeatable.",
+    )
     return parser.parse_args()
 
 
@@ -123,6 +129,7 @@ def build_message(
     cc_recipients: list[str],
     subject: str,
     markdown_text: str,
+    extra_attachments: list[Path],
 ) -> EmailMessage:
     message = EmailMessage()
     from_display = (
@@ -149,6 +156,18 @@ def build_message(
         subtype=subtype,
         filename=markdown_path.name,
     )
+    for attachment_path in extra_attachments:
+        content_type, _ = mimetypes.guess_type(attachment_path.name)
+        if content_type:
+            maintype, subtype = content_type.split("/", 1)
+        else:
+            maintype, subtype = "application", "octet-stream"
+        message.add_attachment(
+            attachment_path.read_bytes(),
+            maintype=maintype,
+            subtype=subtype,
+            filename=attachment_path.name,
+        )
     return message
 
 
@@ -179,6 +198,12 @@ def main() -> None:
     recipients = validate_emails(args.recipients, "recipient")
     cc_recipients = validate_emails(flatten_addresses(args.cc), "cc recipient")
     path, markdown_text = load_markdown(args.markdown_path)
+    extra_attachments = [Path(raw).expanduser().resolve() for raw in args.attach]
+    missing_attachments = [str(item) for item in extra_attachments if not item.is_file()]
+    if missing_attachments:
+        raise SystemExit(
+            "Attachment file(s) not found: " + ", ".join(missing_attachments)
+        )
     subject = derive_title(path, markdown_text, fallback="Markdown Email")
     message = build_message(
         config,
@@ -187,6 +212,7 @@ def main() -> None:
         cc_recipients,
         subject,
         markdown_text,
+        extra_attachments,
     )
 
     if args.dry_run:
@@ -200,6 +226,9 @@ def main() -> None:
         print(f"html_part_bytes={len(message.get_payload()[1].as_bytes())}")
         print(f"attachment={path.name}")
         print(f"attachment_bytes={path.stat().st_size}")
+        for attachment_path in extra_attachments:
+            print(f"extra_attachment={attachment_path.name}")
+            print(f"extra_attachment_bytes={attachment_path.stat().st_size}")
         return
 
     send_message(config, message)
