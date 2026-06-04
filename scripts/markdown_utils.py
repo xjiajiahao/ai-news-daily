@@ -384,8 +384,24 @@ def starts_block(stripped: str) -> bool:
 def render_list_item(lines: list[str], wechat_style: bool = False) -> str:
     chunks: list[str] = []
     paragraph: list[str] = []
+    open_source_stat_pattern = re.compile(
+        r"^\*\*.+?\*\*\s+-\s+Stars:\s+.+?\|\s*(?:今日增长|本周增长):\s+.+$"
+    )
 
     for line in lines:
+        if (
+            wechat_style
+            and paragraph
+            and len(paragraph) == 1
+            and open_source_stat_pattern.match(paragraph[0])
+            and not re.match(r"^(链接|Link|项目链接)[:：]\s*", line)
+        ):
+            chunks.append(
+                open_tag("p", wechat_style, nested_in="li")
+                + format_inline(paragraph[0], wechat_style)
+                + close_tag("p")
+            )
+            paragraph = []
         if re.match(r"^(链接|Link|项目链接)[:：]\s*", line) and paragraph:
             chunks.append(
                 open_tag("p", wechat_style, nested_in="li")

@@ -144,15 +144,101 @@ python3 scripts/fetch_github_trending.py --since daily --limit 15 --json-output 
 - GitHub Trending 更适合放在 `### 开源项目` 小节集中展示，不要用多个趋势项目挤占 `Top 10`
 - 不允许因为“公众号信息量不足”而切换到外部搜索补足条目；宁可减少候选范围，也不要引入未授权来源
 
-### 4. 写出 Markdown 简报
+### 4. 先整理成统一 JSON
+
+在写 Markdown 之前，必须先把当天简报整理成当前目录下的结构化 JSON 文件，默认文件名：
+
+```bash
+ai-news-daily-YYYY-MM-DD.json
+```
+
+这个 JSON 是当天日报的唯一结构化来源。后续 Markdown 和公众号正文都从它渲染，不要直接手写 Markdown 正文。
+
+推荐结构：
+
+```json
+{
+  "title": "AI每日简报 - 2026年6月4日",
+  "date": "2026年6月4日",
+  "open_source_growth_label": "今日增长",
+  "top_items": [
+    {
+      "title": "标题",
+      "summary": "一句话摘要",
+      "links": [
+        {"url": "https://example.com"}
+      ]
+    }
+  ],
+  "sections": {
+    "模型 / 研究": [
+      {
+        "title": "标题",
+        "summary": "一句话摘要",
+        "links": [
+          {"url": "https://example.com"}
+        ]
+      }
+    ],
+    "AI 产品 / Agent": [],
+    "开源项目": [
+      {
+        "title": "owner/repo",
+        "summary": "一句话介绍",
+        "stars": 12345,
+        "today_stars": 678,
+        "links": [
+          {"url": "https://github.com/owner/repo"}
+        ]
+      }
+    ],
+    "基础设施 / 硬件 / 安全": []
+  }
+}
+```
+
+规则：
+
+- 每个条目都必须先整理成 JSON 对象，再进入渲染步骤
+- 每个条目至少要有 `title` 和 `links`
+- `top_items` 每条最终只保留 1 个主链接；如果 JSON 里误放了多个，渲染时只取第一个
+- `links` 必须是数组；如果有多个链接，就写多个元素
+- 开源项目条目额外使用 `stars` 和 `today_stars`
+- 如需周末合订本，可把顶层 `open_source_growth_label` 改成 `本周增长`，并让 GitHub Trending 抓取使用 `--since weekly`
+- 允许 `links` 元素写成字符串 URL，或 `{ "url": "...", "label": "..." }`
+- 同一天如果要改格式或内容，优先改 JSON，再重新渲染 Markdown，不要直接改最终 Markdown
+
+### 5. 用脚本渲染 Markdown 与公众号正文
+
+使用：
+
+```bash
+python3 scripts/render_ai_news_daily.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.json \
+  --markdown-output /absolute/path/to/ai-news-daily-YYYY-MM-DD.md \
+  --wechat-html-output /tmp/ai-news-daily-YYYY-MM-DD.wechat.html
+```
+
+规则：
+
+- `--markdown-output` 生成发邮件和发公众号统一复用的 Markdown 文件
+- `--wechat-html-output` 生成公众号 HTML 预览产物，便于检查排版；即使后续仍由 `send_markdown_wechat.py` 从 Markdown 发送，也应优先让 Markdown 来自这个渲染脚本
+- 如只想校验 JSON 结构，可先运行：
+
+```bash
+python3 scripts/render_ai_news_daily.py /absolute/path/to/ai-news-daily-YYYY-MM-DD.json --validate-only
+```
+
+### 6. 写出 Markdown 简报
 
 简报必须同时写成当前目录下的 Markdown 文件，文件名默认使用 `ai-news-daily-YYYY-MM-DD.md`。
 
 如果用户没有单独指定文件名，就按这个默认文件名写出，后续发邮件或发公众号也使用这个文件。
 
+Markdown 必须由 `scripts/render_ai_news_daily.py` 从当天 JSON 渲染得到，不要直接手工拼最终成稿。
+
 如果用户后续要求发邮件或发公众号，不要重新手工拼正文，统一复用这个 Markdown 文件作为唯一来源。
 
-### 5. 用户要求发邮件时发送简报
+### 7. 用户要求发邮件时发送简报
 
 仅当用户明确要求发到邮箱，且请求里提供了收件人邮箱地址时，执行发送流程。
 
@@ -188,7 +274,7 @@ python3 scripts/send_markdown_email.py /absolute/path/to/ai-news-daily-YYYY-MM-D
 - 可选：`SMTP_FROM_NAME`
 - 可选：`SMTP_SECURITY`，可用值为 `auto`、`ssl`、`starttls`、`plain`
 
-### 6. 用户要求发到微信公众号时创建草稿或提交发布
+### 8. 用户要求发到微信公众号时创建草稿或提交发布
 
 默认优先创建公众号草稿，不要默认直接发布。
 
@@ -241,6 +327,8 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
 
 ## 输出格式
 
+先输出 JSON，再由脚本渲染出下面这种 Markdown 结构：
+
 ```markdown
 # AI每日简报 - [日期]
 
@@ -252,21 +340,31 @@ python3 scripts/send_markdown_wechat.py /absolute/path/to/ai-news-daily-YYYY-MM-
 ## 更多新闻
 
 ### 模型 / 研究
-- [标题] - [链接]
+- [标题]
+  [一句话摘要]
+  链接: [URL]
 
 ### AI 产品 / Agent
-- [标题] - [链接]
+- [标题]
+  [一句话摘要]
+  链接: [URL]
 
 ### 开源项目
-- [项目名] - Stars: N（累计） | 今日增长: N（24h） - [链接]
+- [项目名] - Stars: N（累计） | 今日增长: N（24h）
   [一句话介绍]
+  链接: [URL]
 
 ### 基础设施 / 硬件 / 安全
-- [标题] - [链接]
+- [标题]
+  [一句话摘要]
+  链接: [URL]
 ```
 
 ## 要求
 
+- 必须先写 JSON，再运行 `scripts/render_ai_news_daily.py` 产出 Markdown；不要直接手工写最终 Markdown
+- 公众号 HTML 中，开源项目条目必须在 `Stars / 增长` 行之后换行，再写一句话介绍
+- 公众号 HTML 中，开源项目条目版式以 2026-06-03 日报为准：第一行只放项目名与 `Stars / 增长`，第二行只放一句话介绍，第三行再放 `链接: URL`
 - Top 10 以技术、产品、开源为主
 - Top 10 里优先放“新模型、新研究、新产品、新基础设施”，不要默认把多个 GitHub Trending 条目顶进前 10
 - GitHub Trending 条目在 Top 10 中默认最多 2 条，并且要选当天最有代表性的项目，而不是按热度机械罗列
